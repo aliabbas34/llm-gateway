@@ -1,12 +1,12 @@
-// reads the environment variables and validates them with zod: PORT is a number with a default of 3000, and GROQ_API_KEY is a non-empty string. If a variable is missing, the program stops at startup with a clear error message. It should never fail later, in the middle of a request.
-
 import { z } from "zod";
 
 const envSchema = z.object({
-    PORT: z.coerce.number().int().positive().default(3000),
-    GROQ_API_KEY: z.string(),
-    HOST: z.string().default('0.0.0.0'),
-    NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  PORT: z.coerce.number().int().positive().default(3000),
+  GROQ_API_KEY: z.string(),
+  HOST: z.string().default("0.0.0.0"),
+  NODE_ENV: z
+    .enum(["development", "production", "test"])
+    .default("development"),
 });
 
 const parsedEnv = envSchema.parse(process.env);

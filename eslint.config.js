@@ -7,6 +7,13 @@ export default defineConfig(
   { ignores: ["dist/", "eslint.config.js"] },
   js.configs.recommended,
   tseslint.configs.recommendedTypeChecked,
-  { languageOptions: { parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname } } },
+  {
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
   prettier,
 );
