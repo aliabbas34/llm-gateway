@@ -1,13 +1,13 @@
-import fastify, { FastifyInstance } from "fastify";
-import { ConfigType } from "./config.js";
+import fastify from "fastify";
+import type { ConfigType } from "./config.js";
 
 export function buildApp(config: ConfigType) {
-  const app: FastifyInstance = fastify({
+  const app = fastify({
     logger: config.NODE_ENV !== "test",
   });
 
   app.get("/healthz", () => {
-    return { status: "OK" };
+    return { status: "ok" };
   });
 
   return app;

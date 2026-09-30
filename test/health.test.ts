@@ -1,6 +1,6 @@
-import { FastifyInstance } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { describe, afterEach, beforeEach, it, expect } from "vitest";
-import { ConfigType } from "../src/config.js";
+import type { ConfigType } from "../src/config.js";
 import { buildApp } from "../src/app.js";
 
 describe("GET /healthz", () => {
@@ -8,7 +8,7 @@ describe("GET /healthz", () => {
   beforeEach(() => {
     const mockConfig: ConfigType = {
       PORT: 3000,
-      HOST: "0.0.0.0",
+      HOST: "127.0.0.1",
       GROQ_API_KEY: "TEST_API_KEY",
       NODE_ENV: "test",
     };
@@ -28,9 +28,9 @@ describe("GET /healthz", () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers["content-type"]).toContain("application/json");
 
-    const body: unknown = JSON.parse(response.body);
+    const body: unknown = response.json();
     expect(body).toEqual({
-      status: "OK",
+      status: "ok",
     });
   });
 });

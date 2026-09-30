@@ -1,6 +1,7 @@
 import { buildApp } from "./app.js";
-import { envConfig } from "./config.js";
+import { loadConfig } from "./config.js";
 
+const envConfig = loadConfig();
 const app = buildApp(envConfig);
 
 const start = async () => {
