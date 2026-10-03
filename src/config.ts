@@ -7,6 +7,9 @@ const envSchema = z.object({
   NODE_ENV: z
     .enum(["development", "production", "test"])
     .default("development"),
+  GROQ_MODEL: z.string().min(3).default("qwen/qwen3.8-27b"),
+  MAX_TOKENS: z.coerce.number().int().positive().default(1024),
+  SYSTEM_PROMPT: z.string().default("You are a helpful assistant."),
 });
 
 export function loadConfig(env = process.env) {

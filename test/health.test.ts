@@ -11,6 +11,9 @@ describe("GET /healthz", () => {
       HOST: "127.0.0.1",
       GROQ_API_KEY: "TEST_API_KEY",
       NODE_ENV: "test",
+      GROQ_MODEL: "qwen/qwen3.8-27b",
+      MAX_TOKENS: 1024,
+      SYSTEM_PROMPT: "",
     };
     app = buildApp(mockConfig);
   });
