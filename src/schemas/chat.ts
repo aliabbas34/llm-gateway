@@ -15,4 +15,9 @@ export const messageSchema = z
 export const messageBodySchema = z.object({
   messages: messageSchema,
 });
-export type ChatBody = z.infer<typeof messageBodySchema>;
+export type ChatBody = {
+  model: string;
+  messages: z.infer<typeof messageSchema>;
+  max_tokens: number;
+  stream: boolean;
+};

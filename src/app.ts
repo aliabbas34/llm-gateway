@@ -39,7 +39,7 @@ export function buildApp(config: ConfigType) {
             .status(400)
             .send({ error: "invalid_request", issues: error.issues });
         }
-        return reply.status(500).send({ error });
+        throw error;
       }
     };
   };
@@ -71,10 +71,12 @@ export function buildApp(config: ConfigType) {
             },
             body: JSON.stringify({
               model: config.GROQ_MODEL,
-              messages: messages,
+              messages: [
+                { role: "system", content: config.SYSTEM_PROMPT },
+                ...messages,
+              ],
               stream: true,
               max_tokens: config.MAX_TOKENS,
-              system_prompt: config.SYSTEM_PROMPT,
             }),
             signal: abortController.signal,
           },
@@ -83,7 +85,8 @@ export function buildApp(config: ConfigType) {
         if (!response.ok || !response.body) {
           reply.raw.off("close", onDisconnect);
           request.log.error(
-            `Upstream llm request failed with status: ${response.status} ${response.statusText}`,
+            { status: response.status },
+            "upstream request failed",
           );
           await response.body?.cancel(); // Ensure the upstream is properly aborted if it was left partially open.
           return reply.code(502).send({
@@ -109,19 +112,13 @@ export function buildApp(config: ConfigType) {
         reply.raw.off("close", onDisconnect);
         if (error instanceof Error && error.name === "AbortError") {
           request.log.info(
-            "status-code: 500. Upstream llm request aborted successfully due to client disconnect.",
+            "Upstream llm request aborted successfully due to client disconnect.",
           );
-          return reply.code(502).send({
-            error: "Bad Gateway",
-            message: "Upstream llm request aborted due to client disconnect.",
-          });
         }
+        request.log.error({ status: 502, err: error }, "upstream fetch failed");
         return reply.code(502).send({
           error: "Bad Gateway",
-          message:
-            error instanceof Error
-              ? error.message
-              : "An unknown error occurred.",
+          message: "An unknown error occurred.",
         });
       }
     },

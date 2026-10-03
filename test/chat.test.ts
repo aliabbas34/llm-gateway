@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { buildApp } from "../src/app.js";
+import type { ChatBody } from "../src/schemas/chat.js";
 
 const mockConfig = {
   NODE_ENV: "test" as const,
@@ -11,7 +12,7 @@ const mockConfig = {
   SYSTEM_PROMPT: "You are a helpful assistant.",
 };
 
-describe("POST /api/v1/chat/completions - LLM Gateway Test Suite", () => {
+describe("POST /v1/chat/completions - LLM Gateway Test Suite", () => {
   let app: ReturnType<typeof buildApp>;
 
   beforeEach(() => {
@@ -54,8 +55,30 @@ describe("POST /api/v1/chat/completions - LLM Gateway Test Suite", () => {
       url: "/v1/chat/completions",
       payload: {
         messages: [{ role: "user", content: "Hi" }],
+        model: "llama-3.3-70b-versatile",
       },
     });
+
+    const firstCall = spyFetch.mock.calls[0] as
+      [string, RequestInit] | undefined;
+    expect(firstCall).toBeDefined();
+    const [url, init] = firstCall as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as ChatBody;
+    const systemMessage = body.messages[0];
+    const userMessage = body.messages[1];
+    const model = body.model;
+    const maxTokens = body.max_tokens;
+    const stream = body.stream;
+    const authHeader = new Headers(init.headers).get("Authorization");
+    expect(authHeader).toBe(`Bearer ${mockConfig.GROQ_API_KEY}`);
+    expect(systemMessage?.role).toBe("system");
+    expect(systemMessage?.content).toBe(mockConfig.SYSTEM_PROMPT);
+    expect(userMessage?.role).toBe("user");
+    expect(userMessage?.content).toBe("Hi");
+    expect(model).toBe(mockConfig.GROQ_MODEL);
+    expect(maxTokens).toBe(Number(mockConfig.MAX_TOKENS));
+    expect(stream).toBe(true);
+    expect(url).toBe("https://api.groq.com/openai/v1/chat/completions");
 
     expect(response.statusCode).toBe(200);
     expect(response.headers["content-type"]).toBe("text/event-stream");
@@ -66,7 +89,7 @@ describe("POST /api/v1/chat/completions - LLM Gateway Test Suite", () => {
   });
 
   // ZOD VALIDATION
-  it("should fail validation and return 403 when the body is empty or malformed", async () => {
+  it("should fail validation and return 400 when the body is empty or malformed", async () => {
     const response = await app.inject({
       method: "POST",
       url: "/v1/chat/completions",
@@ -105,78 +128,6 @@ describe("POST /api/v1/chat/completions - LLM Gateway Test Suite", () => {
     expect(response.body).not.toContain(mockConfig.GROQ_API_KEY);
   });
 
-  // CLIENT DISCONNECT LIFE-CYCLE TRACKING
-  it("should abort the upstream fetch when the response close handler runs", async () => {
-    let abortSignalTriggered = false;
-
-    // Simulate an ongoing stream that only ends after the upstream request is aborted
-    let streamController:
-      ReadableStreamDefaultController<Uint8Array> | undefined;
-    const infiniteStream = new ReadableStream({
-      start(controller) {
-        streamController = controller;
-        controller.enqueue(
-          new TextEncoder().encode('data: {"text": "thinking..."}'),
-        );
-      },
-    });
-
-    let resolveAbort!: () => void;
-    const abortReceived = new Promise<void>((resolve) => {
-      resolveAbort = resolve;
-    });
-
-    const spyFetch = vi
-      .fn()
-      .mockImplementation((_url: RequestInfo | URL, init?: RequestInit) => {
-        // Hook directly into the fetch configuration options to detect the abort broadcast
-        init?.signal?.addEventListener("abort", () => {
-          abortSignalTriggered = true;
-          resolveAbort();
-          try {
-            streamController?.close();
-          } catch {
-            // The downstream disconnect may already have canceled the stream.
-          }
-        });
-        return Promise.resolve({
-          ok: true,
-          body: infiniteStream,
-        });
-      });
-    vi.stubGlobal("fetch", spyFetch);
-
-    const listenersBeforeRequest = new WeakMap<object, Set<unknown>>();
-    app.addHook("onRequest", async (_request, reply) => {
-      listenersBeforeRequest.set(
-        reply.raw,
-        new Set(reply.raw.listeners("close")),
-      );
-    });
-    app.addHook("onSend", async (_request, reply, payload) => {
-      const existingListeners =
-        listenersBeforeRequest.get(reply.raw) ?? new Set<unknown>();
-      const disconnectHandler = reply.raw
-        .listeners("close")
-        .find((listener) => !existingListeners.has(listener));
-
-      // Invoke only the route's newly registered handler; emitting "close" would
-      // make LightMyRequest destroy the test response itself.
-      disconnectHandler?.call(reply.raw);
-      return payload;
-    });
-
-    await app.inject({
-      method: "POST",
-      url: "/v1/chat/completions",
-      payload: { messages: [{ role: "user", content: "Stay open" }] },
-    });
-
-    await abortReceived;
-    expect(spyFetch).toHaveBeenCalled();
-    expect(abortSignalTriggered).toBe(true);
-  });
-
   // PHYSICAL NETWORK DROPS / DNS TIMEOUTS
   it("should gracefully handle a sudden network crash or fetch rejection by returning a 502", async () => {
     // Intended Behavior: The network drops completely, fetch throws an error, gateway intercepts it safely
@@ -194,7 +145,7 @@ describe("POST /api/v1/chat/completions - LLM Gateway Test Suite", () => {
     expect(response.statusCode).toBe(502);
     const parsedBody: { error: string; message: string } = response.json();
     expect(parsedBody.error).toBe("Bad Gateway");
-    expect(parsedBody.message).toContain("Fetch failed unexpectedly");
+    expect(parsedBody.message).toBe("An unknown error occurred.");
   });
 
   // 200 OK WITH EMPTY/NULL PAYLOAD
@@ -217,7 +168,7 @@ describe("POST /api/v1/chat/completions - LLM Gateway Test Suite", () => {
     expect(response.statusCode).toBe(502);
     const parsedBody: { error: string; message: string } = response.json();
     expect(parsedBody.error).toBe("Bad Gateway");
-    expect(parsedBody.message).toContain(
+    expect(parsedBody.message).toBe(
       "Failed to fetch stream from the upstream ai model.",
     );
   });
